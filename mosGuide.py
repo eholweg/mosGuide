@@ -15,11 +15,13 @@ def createTimestamp( d, t ):
 
 
 data={}
-sqlite_file="./db/mosdb.db"
+dtgFormat = "%Y-%m-%d %H:%M:%S"
 
-#conn = sqlite3.connect(sqlite_file, detect_types=sqlite3.PARSE_DECLTYPES)
-#conn.execute("CREATE TABLE models (id integer primary key, modelrun int, model text, site text, [timestamp] timestamp)")
-#conn.execute("CREATE TABLE max (mdlid integer, max int, tau int)")
+#DB CONNECTION SET UP
+sqlite_file="./db/mosdb.db"
+conn = sqlite3.connect(sqlite_file)
+c = conn.cursor()
+
 
 with open('mosData/MAVCHA') as f:
     for line in f:
@@ -33,18 +35,32 @@ with open('mosData/MAVCHA') as f:
             site=arr[0]
             mod=arr[1]
             tstmp=createTimestamp( arr[4], arr[5] )
-            newstamp=tstmp.strftime("%Y-%m-%d %H:%M:%S.000")
+            newstamp=tstmp.strftime("%Y-%m-%d %H:%M:%S")
             runtime=tstmp.strftime("%H").lstrip('0')
 
             sql = "SELECT modelIndex, timestamp FROM ModelTable WHERE model='"+mod+"' AND site='"+site+"'and modelRunTime="+runtime+"\n"
-            res = '##modIn##'
-            res1='oldTimeStamp'
-            sql += "UPDATE ModelTable SET timestamp='"+res1+"' WHERE model='"+mod+"' AND site='"+site+"' and modelRunTime=99\n"
-            sql += "SELECT modelIndex FROM ModelTable WHERE model='"+mod+"' AND site='"+site+"'and modelRunTime='99'\n"
+            whereVars=(mod, site, runtime)
+            c.execute("SELECT modelIndex, timestamp FROM ModelTable WHERE model=? AND site=? and modelRunTime=?", whereVars)
+            res=c.fetchone()
+            modelIndex = res[0]
+            oldTimeStamp= datetime.strptime(res[1], dtgFormat )
+            oldTimeStamp += timedelta(hours=24)
+
+            whereVars=(oldTimeStamp.strftime(dtgFormat), mod, site)
+            c.execute("UPDATE modelTable SET timestamp=? WHERE model=? AND site=? and modelRunTime=99", whereVars)
+            conn.commit()
+
+
+            print c.rowcount
+            print whereVars
+
+
+
+            #sql = "SELECT modelIndex FROM ModelTable WHERE model='"+mod+"' AND site='"+site+"'and modelRunTime='99'\n"
             res2='##24HrIndex##'
-            sql += "UPDATE ModelTable SET timestamp='"+newstamp+"' WHERE model='"+mod+"' AND site='"+site+"' and modelRunTime="+runtime+"\n"
+            #sql += "UPDATE ModelTable SET timestamp='"+newstamp+"' WHERE model='"+mod+"' AND site='"+site+"' and modelRunTime="+runtime+"\n"
             # NOW CLEAN OUT MIN/MAX/POP TABLES TO RECIEVE NEW DATA
-            sql += "UPDATE minTable SET modelIndex='"+res2+"' WHERE modelIndex='"+res+"'\n"
+            #sql += "UPDATE minTable SET modelIndex='"+res2+"' WHERE modelIndex='"+res+"'\n"
 
             print sql
 
@@ -82,11 +98,11 @@ print dtg.strftime("%A")
 
 dtg += timedelta(hours=24)
 
-print dtg.strftime("%Y-%m-%d %H:%M:%S.000")
+print dtg.strftime(dtgFormat)
 print dtg.strftime("%A")
 
 dtg -= timedelta(hours=24)
 
-print dtg.strftime("%Y-%m-%d %H:%M:%S.000")
+print dtg.strftime(dtgFormat)
 print dtg.strftime("%A")
 
