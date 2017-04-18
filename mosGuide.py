@@ -10,12 +10,13 @@ def createTimestamp( d, t ):
         dParts[0]='0'+dParts[0]
     if len(dParts[1])==1:
         dParts[1]='0'+dParts[1]
-    dt_obj=datetime( int(dParts[2]), int(dParts[1]), int(dParts[0]), int(t[:2]), 0, 0 )
+    dt_obj=datetime( int(dParts[2]), int(dParts[0]), int(dParts[1]), int(t[:2]), 0, 0 )
     return dt_obj
 
 
 data={}
 dtgFormat = "%Y-%m-%d %H:%M:%S"
+
 
 #DB CONNECTION SET UP
 sqlite_file="./db/mosdb.db"
@@ -26,7 +27,6 @@ c = conn.cursor()
 with open('mosData/MAVCHA') as f:
     for line in f:
         line=line.rstrip().lstrip()
-        #print line
 
         #Get Site
         #Check if line as MOS GUIDANCE PHRASE
@@ -38,71 +38,101 @@ with open('mosData/MAVCHA') as f:
             newstamp=tstmp.strftime("%Y-%m-%d %H:%M:%S")
             runtime=tstmp.strftime("%H").lstrip('0')
 
-            sql = "SELECT modelIndex, timestamp FROM ModelTable WHERE model='"+mod+"' AND site='"+site+"'and modelRunTime="+runtime+"\n"
             whereVars=(mod, site, runtime)
             c.execute("SELECT modelIndex, timestamp FROM ModelTable WHERE model=? AND site=? and modelRunTime=?", whereVars)
             res=c.fetchone()
             modelIndex = res[0]
             oldTimeStamp= datetime.strptime(res[1], dtgFormat )
-            oldTimeStamp += timedelta(hours=24)
 
             whereVars=(oldTimeStamp.strftime(dtgFormat), mod, site)
             c.execute("UPDATE modelTable SET timestamp=? WHERE model=? AND site=? and modelRunTime=99", whereVars)
+
+            whereVars=(tstmp, mod, site, runtime)
+            c.execute("UPDATE modelTable SET timestamp=? WHERE model=? AND site=? and modelRunTime=?", whereVars)
+
+            #TODO - Need to change the max/min/pop tables in order to reflect modelIndex of 99 for 24 hour old model
+
             conn.commit()
 
-
-            print c.rowcount
-            print whereVars
-
-
-
-            #sql = "SELECT modelIndex FROM ModelTable WHERE model='"+mod+"' AND site='"+site+"'and modelRunTime='99'\n"
-            res2='##24HrIndex##'
-            #sql += "UPDATE ModelTable SET timestamp='"+newstamp+"' WHERE model='"+mod+"' AND site='"+site+"' and modelRunTime="+runtime+"\n"
-            # NOW CLEAN OUT MIN/MAX/POP TABLES TO RECIEVE NEW DATA
-            #sql += "UPDATE minTable SET modelIndex='"+res2+"' WHERE modelIndex='"+res+"'\n"
-
-            print sql
-
-        #If so first four characters are site ID,
-        #Next three chars are model
+        #Store remainder of data into the data array
+        arr = re.split('\s+', line)
+        data[arr.pop(0)] = arr
 
 
-
-        #Get Hours
-
-        #Get MaxMin
-
-        #Get Temp
+        #oldTimeStamp += timedelta(hours=24)
 
 
+# NOW HAVE ALL DATA STORED IN THE DATA ARRAY
+# STORE OFF VALUES INTO DB
 
-        arr=re.split('\s+', line)
-        data[arr.pop(0)]=arr
-        #print arr
-        #data=pd.read_csv(line, delimiter=' ')
-        #data
-
-
+#MIN/MAX MAX/MIN
 # If model run is from 00 or 06 UTC then the field in 'X/N'
-# otherwise the field is 'N/X'
+# If model run is from 12 or 18 UTC then the field is 'N/X'
+# Max shows up at 00 hour... Min shows up at 12 hour
+#print data['N/X']
+minmax={}
+
+# REMOVE EXISTING ROWS WITH THAT MODEL INDEX
+whereVars=( modelIndex, )
+sql = "DELETE FROM minTable WHERE modelIndex=?"
+c.execute(sql, whereVars)
+sql = "DELETE FROM maxTable WHERE modelIndex=?"
+c.execute(sql, whereVars)
+conn.commit()
+
+# BUILD NEW ROWS FROM BULLETIN DATA
+if runtime=="12" or runtime=="18":
+    # STARTS WITH TOMORROW MIN
+    minFirst=True
+    if runtime=="12":
+        tau=24
+    else:
+        tau=18
+
+    for x in data['N/X']:
+        minmax[tau] = x
+        tau += 12
+else:
+    # STARTS WITH TODAY MAX
+    minFirst=False
+    if runtime=="0":
+        tau=24
+    else:
+        tau=18
+
+    for x in data['X/N']:
+        minmax[tau] = x
+        tau += 12
+
+for tau, xn in sorted( minmax.items() ):
+    #print tau, xn
+    whereVars=( modelIndex, tau, int(xn) )
+    if minFirst:
+        sql = "INSERT INTO minTable VALUES (?, ?, ?)"
+        c.execute(sql, whereVars)
+        conn.commit()
+        minFirst=False
+    else:
+        sql = "INSERT INTO maxTable VALUES (?, ?, ?)"
+        c.execute(sql, whereVars)
+        conn.commit()
+        minFirst = True
+# - MIN/MAX GUIDANCE IS NOW INSERTED FOR THIS SITE MODEL AND TIME
 
 
-print data['N/X']
-print data['KCHA']
-print data['DT']
-print data
+#print data['KCHA']
+#print data['DT']
+#print data
 
-dtg=createTimestamp( data['KCHA'][3], data['KCHA'][4])
-print dtg.strftime("%A")
+#dtg=createTimestamp( data['KCHA'][3], data['KCHA'][4])
+#print dtg.strftime("%A")
 
-dtg += timedelta(hours=24)
+#DAY OF WEEK... MONDAY
 
-print dtg.strftime(dtgFormat)
-print dtg.strftime("%A")
-
-dtg -= timedelta(hours=24)
-
-print dtg.strftime(dtgFormat)
-print dtg.strftime("%A")
+#dtg += timedelta(hours=24)
+#print dtg.strftime(dtgFormat)
+#print dtg.strftime("%A")
+#dtg -= timedelta(hours=24)
+#print dtg.strftime(dtgFormat)
+#print dtg.strftime("%A")
 
