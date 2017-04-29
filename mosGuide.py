@@ -28,7 +28,7 @@ mA.add_argument( '-mosFiles', nargs='+', type=str, help="Names of MOS files to b
 mosArgsFiles = mA.parse_args().mosFiles
 
 for mos in mosArgsFiles:
-    mosFile = 'mosData/' + mos
+    mosFile = 'mosData/4/' + mos
     with open(mosFile) as f:
         for line in f:
             line=line.rstrip().lstrip()
@@ -41,9 +41,10 @@ for mos in mosArgsFiles:
                 mod=arr[1]
                 tstmp=createTimestamp( arr[4], arr[5] )
                 newstamp=tstmp.strftime("%Y-%m-%d %H:%M:%S")
-                runtime=tstmp.strftime("%H").lstrip('0')
+                runtime=int(tstmp.strftime("%H"))
 
                 whereVars=(mod, site, runtime)
+                print mod, site, runtime
                 c.execute("SELECT modelIndex, timestamp FROM ModelTable WHERE model=? AND site=? and modelRunTime=?", whereVars)
                 res=c.fetchone()
                 modelIndex = res[0]
@@ -55,7 +56,6 @@ for mos in mosArgsFiles:
                 whereVars=(tstmp, mod, site, runtime)
                 c.execute("UPDATE modelTable SET timestamp=? WHERE model=? AND site=? and modelRunTime=?", whereVars)
 
-                #TODO - Need to change the max/min/pop tables in order to reflect modelIndex of 99 for 24 hour old model
                 whereVars = ( 99,)
                 sql = "DELETE FROM minTable WHERE modelIndex=?"
                 c.execute(sql, whereVars)
@@ -95,7 +95,7 @@ for mos in mosArgsFiles:
     conn.commit()
 
     ### BUILD NEW ROWS FROM BULLETIN DATA
-    if runtime=="12" or runtime=="18":
+    if runtime==12 or runtime==18:
         ### STARTS WITH TOMORROW MIN
         minFirst=True
         if runtime=="12":
