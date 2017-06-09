@@ -27,13 +27,46 @@
   </component>
   <component name="DBNavigator.Project.DatabaseConsoleManager">
     <connection id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e">
-      <console name="MOS DB" type="STANDARD" />
+      <console name="MOS DB" type="STANDARD"><![CDATA[create table pop12Table (modelIndex integer, tau integer, pop12Val integer)
+alter table pop12Table rename to popDayTable
+select * from popDayTable]]></console>
+      <console name="MOS DB 1" type="STANDARD" />
+      <console name="MOS DB Live" type="STANDARD" />
+    </connection>
+    <connection id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3">
+      <console name="A2Oper" type="STANDARD"><![CDATA[select * from "minTable" where "modelIndex"=1
+select * from "maxTable" where "modelIndex"=1
+create table pop12Table (modelIndex integer, tau integer, pop12Val integer)
+alter table pop12Table rename to popDayTable
+select * from popDayTable]]></console>
     </connection>
   </component>
   <component name="DBNavigator.Project.DatasetFilterManager">
+    <filter-list connection-id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" dataset="main.minTable" active-filter-id="0c2eb14c-d991-40fe-8245-92022d1e448c">
+      <filter id="0c2eb14c-d991-40fe-8245-92022d1e448c" name="4" temporary="false" custom-name="false" type="basic" join-type="AND">
+        <condition column="modelIndex" operator="=" value="4" active="true" />
+      </filter>
+    </filter-list>
+    <filter-list connection-id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" dataset="main.popPdTable" active-filter-id="40b43721-2885-4157-828c-8eb5491e52dd">
+      <filter id="40b43721-2885-4157-828c-8eb5491e52dd" name="4" temporary="false" custom-name="false" type="basic" join-type="AND">
+        <condition column="modelIndex" operator="=" value="4" active="true" />
+      </filter>
+    </filter-list>
+    <filter-list connection-id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" dataset="main.maxTable" active-filter-id="95db6dfd-914d-4af7-b319-d00053971cd1">
+      <filter id="95db6dfd-914d-4af7-b319-d00053971cd1" name="4" temporary="false" custom-name="false" type="basic" join-type="AND">
+        <condition column="modelIndex" operator="=" value="4" active="true" />
+      </filter>
+    </filter-list>
+    <filter-list connection-id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" dataset="main.modelTable" active-filter-id="EMPTY_FILTER" />
+    <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.popPdTable" active-filter-id="d87c679f-314c-4c68-882b-80107ae5dd58">
+      <filter id="d87c679f-314c-4c68-882b-80107ae5dd58" name="Filter 1" temporary="false" custom-name="false" type="basic" join-type="AND">
+        <condition column="modelIndex" operator="=" value="" active="true" />
+      </filter>
+    </filter-list>
     <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.modelTable" active-filter-id="a6e290ca-622e-4398-8a04-77393aef186c">
       <filter id="a6e290ca-622e-4398-8a04-77393aef186c" name="Filter" temporary="false" custom-name="false" type="basic" join-type="AND" />
     </filter-list>
+    <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.maxTable" active-filter-id="EMPTY_FILTER" />
   </component>
   <component name="DBNavigator.Project.EditorStateManager">
     <last-used-providers />
@@ -75,7 +108,86 @@
           <port value="" />
           <database value="" />
           <files>
-            <file path="U:\pycharmProjects\mosGuide\db\mosdb.db" schema="main" />
+            <file path="$PROJECT_DIR$/db/mosdb.db" schema="main" />
+          </files>
+          <os-authentication value="false" />
+          <empty-password value="false" />
+          <user value="" />
+          <password value="" />
+        </database>
+        <properties>
+          <auto-commit value="false" />
+        </properties>
+        <ssh-settings>
+          <active value="false" />
+          <proxy-host value="" />
+          <proxy-port value="22" />
+          <proxy-user value="" />
+          <proxy-password value="" />
+          <auth-type value="PASSWORD" />
+          <key-file value="" />
+          <key-passphrase value="" />
+        </ssh-settings>
+        <details>
+          <charset value="UTF-8" />
+          <ddl-file-binding value="true" />
+          <database-logging value="false" />
+          <connect-automatically value="true" />
+          <restore-workspace value="true" />
+          <restore-workspace-deep value="true" />
+          <environment-type value="default" />
+          <idle-time-to-disconnect value="30" />
+          <password-expiry-time value="10" />
+          <max-connection-pool-size value="7" />
+          <alternative-statement-delimiter value="" />
+        </details>
+        <object-filters hide-empty-schemas="false">
+          <object-type-filter use-master-settings="true">
+            <object-type name="SCHEMA" enabled="true" />
+            <object-type name="USER" enabled="true" />
+            <object-type name="ROLE" enabled="true" />
+            <object-type name="PRIVILEGE" enabled="true" />
+            <object-type name="CHARSET" enabled="true" />
+            <object-type name="TABLE" enabled="true" />
+            <object-type name="VIEW" enabled="true" />
+            <object-type name="MATERIALIZED_VIEW" enabled="true" />
+            <object-type name="NESTED_TABLE" enabled="true" />
+            <object-type name="COLUMN" enabled="true" />
+            <object-type name="INDEX" enabled="true" />
+            <object-type name="CONSTRAINT" enabled="true" />
+            <object-type name="DATASET_TRIGGER" enabled="true" />
+            <object-type name="DATABASE_TRIGGER" enabled="true" />
+            <object-type name="SYNONYM" enabled="true" />
+            <object-type name="SEQUENCE" enabled="true" />
+            <object-type name="PROCEDURE" enabled="true" />
+            <object-type name="FUNCTION" enabled="true" />
+            <object-type name="PACKAGE" enabled="true" />
+            <object-type name="TYPE" enabled="true" />
+            <object-type name="TYPE_ATTRIBUTE" enabled="true" />
+            <object-type name="ARGUMENT" enabled="true" />
+            <object-type name="DIMENSION" enabled="true" />
+            <object-type name="CLUSTER" enabled="true" />
+            <object-type name="DBLINK" enabled="true" />
+          </object-type-filter>
+          <object-name-filters />
+        </object-filters>
+      </connection>
+      <connection id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" active="true">
+        <database>
+          <name value="A2Oper" />
+          <description value="" />
+          <database-type value="SQLITE" />
+          <config-type value="BASIC" />
+          <database-version value="3.0" />
+          <driver-source value="BUILTIN" />
+          <driver-library value="" />
+          <driver value="" />
+          <url-type value="FILE" />
+          <host value="" />
+          <port value="" />
+          <database value="" />
+          <files>
+            <file path="/localapps/runtime/mosGuide/db/mosdb.db" schema="main" />
           </files>
           <os-authentication value="false" />
           <empty-password value="false" />
