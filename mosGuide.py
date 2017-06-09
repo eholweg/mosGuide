@@ -161,3 +161,6 @@ for mos in os.listdir(mosDir):
             # dtg -= timedelta(hours=24)
             # print dtg.strftime(dtgFormat)
             # print dtg.strftime("%A")
+
+    # Remove the file that has been processed
+    os.remove(mosFile)
