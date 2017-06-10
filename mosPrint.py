@@ -27,9 +27,8 @@ def createPrint(sites, dtg, max, min, pop):
     dVals = {}
     rt = datetime.strptime(dtg, dtgFormat)
     rtHr = rt.hour
-    current_date=datetime.now()
-    today = current_date.strftime("%A") #Saturday
-
+    current_date = datetime.now()
+    today = current_date.strftime("%A")  # Saturday
 
     for s in sites:
         print s
@@ -55,18 +54,18 @@ def createPrint(sites, dtg, max, min, pop):
         lgr.info("TAU START AT: " + str(tauSt))
 
         for t in xrange(tauSt, 72, 12):
-            newTime=rt + timedelta(hours=t)
-            dayOfWeek=newTime.strftime("%A") #Sunday
+            newTime = rt + timedelta(hours=t)
+            dayOfWeek = newTime.strftime("%A")  # Sunday
 
-            if newTime.hour==0:
-                isNight=""
+            if newTime.hour == 0:
+                isNight = ""
             else:
-                isNight="Night"
+                isNight = "Night"
 
-            if today==dayOfWeek and t<24:
-                dayOfWeek="Today"
-            elif today==dayOfWeek and t<36:
-                dayOfWeek="Tonight"
+            if today == dayOfWeek and t < 24:
+                dayOfWeek = "Today"
+            elif today == dayOfWeek and t < 36:
+                dayOfWeek = "Tonight"
             print dayOfWeek
             print isNight
 
@@ -110,6 +109,13 @@ def createPrint(sites, dtg, max, min, pop):
     return
 
 
+
+#.....................................................................#
+#.....................................................................#
+# MAIN PROGRAM FOR PRINTING OUT MOS DATA                              #
+#.....................................................................#
+#.....................................................................#
+
 # Get the path to the executable python
 curFile = __file__
 realPath = os.path.realpath(curFile)
@@ -146,8 +152,8 @@ popValsArr = {}
 if mosArgsFiles[0] == "ALL":
     lgr.info("GOING TO RETRIEVE ALL SITES")
     c.execute("SELECT DISTINCT site FROM ModelTable")
-    sitesData=c.fetchall()
-    sites=[]
+    sitesData = c.fetchall()
+    sites = []
     for s in sitesData:
         sites.append(s[0])
 
