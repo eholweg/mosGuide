@@ -3,8 +3,8 @@ import logging
 from logging.config import fileConfig
 import argparse
 import os
+import pytz
 from datetime import datetime, timedelta
-
 
 def createTimestamp(d, t):
     dParts = d.split('/')
@@ -15,28 +15,69 @@ def createTimestamp(d, t):
     dt_obj = datetime(int(dParts[2]), int(dParts[0]), int(dParts[1]), int(t[:2]), 0, 0)
     return dt_obj
 
-
 def makeDictionary(data):
     dict = {}
     for t in data:
         dict[t[0]] = t[1]
     return dict
 
+def createHeader(runtime):
+    rt = datetime.strptime(runtime, dtgFormat)
+    header="Model Run Time "
+    header+=rt.strftime('%m/%d/%Y %H%M')+"\n"
+    header+='{0:<6s}{1}{2:>4s}{3:>4s}{4:>6s}{5:^10}{6}{7:>4s}{8:>4s}{9:>6s}\n'.format(
+                            '***',
+                            'Temps',
+                            'MET',
+                            'MAV',
+                            'Blend',
+                            '******',
+                            'POPS',
+                            'MET',
+                            'MAV',
+                            'Blend'
+                )
+    return header
 
-def createPrint(sites, dtg, max, min, pop):
-    dVals = {}
+def createDateLabels(runtime, tau):
+    typeData="Min"
+    nightVal=""
+    newTime = runtime + timedelta(hours=tau)
+    newTimeUTC = newTime.replace(tzinfo=pytz.timezone('UTC'))
+
+    if tau<25:
+        if newTime.hour==0:
+            dayVal="Today"
+            typeData="Max"
+        else:
+            dayVal="Tonight"
+    else:
+        etz=pytz.timezone('US/Eastern')
+        easternTime=newTimeUTC.astimezone(etz)
+        if newTimeUTC.hour == 0:
+            nightVal = ""
+            dayVal = easternTime.strftime("%A")  # Sunday
+            typeData="Max"
+        else:
+            easternTime = easternTime - timedelta(hours=12)
+            dayVal = easternTime.strftime("%A")  # Sunday
+            nightVal = " Night"
+
+    return '{0:<25s}{1:}\n'.format( typeData, dayVal+nightVal )
+
+def createBody(sites, dtg, maxNam, minNam, popNam, maxGfs, minGfs, popGfs):
+    dataVals=''
+    dValsNam = {}
+    dValsGfs = {}
     rt = datetime.strptime(dtg, dtgFormat)
     rtHr = rt.hour
-    current_date = datetime.now()
-    today = current_date.strftime("%A")  # Saturday
 
+    #Get all sites in DB
     for s in sites:
-        print s
-        print max[s]
-        print type(max[s])
-
-        dVals[s] = max[s].copy()
-        dVals[s].update(min[s])
+        dValsNam[s] = maxNam[s].copy()
+        dValsNam[s].update(minNam[s])
+        dValsGfs[s] = maxGfs[s].copy()
+        dValsGfs[s].update(minGfs[s])
 
     # IF 0 OR 6 RUN... MAX WILL BE FIRST
     # ... 6Z starts at 18 hours
@@ -44,7 +85,7 @@ def createPrint(sites, dtg, max, min, pop):
     # IF 12 OR 18 RUN... MIN WILL BE FIRST
     # ... 18Z starts at 18 hours
     # ... 12Z starts at 24 hours
-    if rtHr == 0 or rtHr == 6:
+    if rtHr < 7:
         if rtHr == 0:
             tauSt = 24
         else:
@@ -53,35 +94,11 @@ def createPrint(sites, dtg, max, min, pop):
         lgr.info("MAX VALUES FIRST")
         lgr.info("TAU START AT: " + str(tauSt))
 
-        for t in xrange(tauSt, 72, 12):
-            newTime = rt + timedelta(hours=t)
-            dayOfWeek = newTime.strftime("%A")  # Sunday
-
-            if newTime.hour == 0:
-                isNight = ""
-            else:
-                isNight = "Night"
-
-            if today == dayOfWeek and t < 24:
-                dayOfWeek = "Today"
-            elif today == dayOfWeek and t < 36:
-                dayOfWeek = "Tonight"
-            print dayOfWeek
-            print isNight
-
-            for s in sites:
-                print('{} {} - {}'.format(str(rt + timedelta(hours=t)), s, dVals[s][t]))
-
-
-                # print max
-                # for s in maxValsArr:
-                #    print s
-                #    print maxValsArr[s]
-                # print str(rt + timedelta(hours=18))
-                # print str(rt + timedelta(hours=30))
-
-
-
+        for t in xrange(tauSt, 84, 12):
+            # Use time delta and runtime...
+            # Calculate Day of Week
+            dayOfWeek = createDateLabels(rt, t)
+            dataVals+=dayOfWeek
     else:
         if rtHr == 12:
             tauSt = 24
@@ -91,22 +108,41 @@ def createPrint(sites, dtg, max, min, pop):
         lgr.info("MIN VALUES FIRST")
         lgr.info("TAU START AT: " + str(tauSt))
 
-        for t in xrange(tauSt, 72, 12):
-            for s in sites:
-                print('{} {} - {}'.format(str(rt + timedelta(hours=t)), s, dVals[s][t]))
+    for t in xrange(tauSt, 84, 12):
+        dataVals += createDateLabels(rt, t)
+        for s in sites:
+            btemp=int( round( (dValsNam[s][t] + dValsGfs[s][t]) / 2, 0 ) )
+            bpop=int( round( (popNam[s][t] + popGfs[s][t]) / 2, 0 ) )
 
-                # print min
-                # for s in minValsArr:
-                #    print s
-                #    print minValsArr[s]
+            dataVals += '{0:<10s}{1:>5d}{2:>4d}{3:>6d}{4:<14s}{5:>4d}{6:>4d}{7:>6d}\n'.format(
+                s[1:],
+                dValsNam[s][t],
+                dValsGfs[s][t],
+                btemp,
+                ' ',
+                popNam[s][t],
+                popGfs[s][t],
+                bpop
+            )
+        dataVals += "\n"
+    return dataVals
 
-
-                # print(rt)
-                # print("Add 18 then 30 hrs")
-                # print str( rt + timedelta(hours=24) )
-                # print str( rt + timedelta(hours=30) )
-
-    return
+def createFooter():
+    footer="""SHORT-TERM
+        AFD___ ZFP(GEN)___ SYN___ FWF___ HWO(GEN)___ NFDRS___
+  
+LONG-TERM
+        WRKAFD___ ZFP(XMIT)___  HWO(XMIT)___
+ 
+GRIDS
+    T___ DP___ MAX___ MIN___ WND___ SKY___ WX___POP___QPF___SNW___ICE___
+ 
+    Haines___ MixHgt___ TransWind___ Forecaster Number___ 
+ 
+VERIFY RUN/SENT
+              FWM___ SFT___ AFM___ PFM___
+  """
+    return footer
 
 
 
@@ -145,13 +181,16 @@ mosArgsFiles = mA.parse_args().mosFiles
 
 vtimesnam = {}
 vtimesgfs = {}
-maxValsArr = {}
-minValsArr = {}
-popValsArr = {}
+maxValsArrNam = {}
+minValsArrNam = {}
+popValsArrNam = {}
+maxValsArrGfs = {}
+minValsArrGfs = {}
+popValsArrGfs = {}
 
 if mosArgsFiles[0] == "ALL":
     lgr.info("GOING TO RETRIEVE ALL SITES")
-    c.execute("SELECT DISTINCT site FROM ModelTable")
+    c.execute("SELECT siteid FROM mosGuideAdmin ORDER BY displayOrder")
     sitesData = c.fetchall()
     sites = []
     for s in sitesData:
@@ -189,33 +228,47 @@ if mosArgsFiles[0] == "ALL":
             modelIndex = c.fetchone()[0]
             whereVars = (modelIndex,)
             c.execute(qMax, whereVars)
-            maxValsArr[site] = makeDictionary(c.fetchall())
+            maxValsArrNam[site] = makeDictionary(c.fetchall())
             c.execute(qMin, whereVars)
-            minValsArr[site] = makeDictionary(c.fetchall())
+            minValsArrNam[site] = makeDictionary(c.fetchall())
             c.execute(qPop, whereVars)
-            popValsArr[site] = makeDictionary(c.fetchall())
+            popValsArrNam[site] = makeDictionary(c.fetchall())
 
         # HAVE ALL NAM VALUES... NOW NEED TO OUTPUT
         lgr.info("SENDING DATA TO CREATE PRINT")
-        createPrint(sites, latestNam, maxValsArr, minValsArr, popValsArr)
-
-
     else:
         lgr.info("NAM TIMES DIFFER")
 
     # GFS MOS
     if len(set(vtimesgfs.values())) == 1:
         lgr.info("GFS TIMES EQUAL")
+        q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
+        qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
+        qMin = "SELECT tau, minVal from minTable WHERE modelIndex=? ORDER BY tau"
+        qPop = "SELECT tau, popVal from popPdTable WHERE modelIndex=? ORDER BY tau"
+
+        for sa in sites:
+            site = sa
+            whereVars = ('GFS', latestNam, site)
+            c.execute(q, whereVars)
+            modelIndex = c.fetchone()[0]
+            whereVars = (modelIndex,)
+            c.execute(qMax, whereVars)
+            maxValsArrGfs[site] = makeDictionary(c.fetchall())
+            c.execute(qMin, whereVars)
+            minValsArrGfs[site] = makeDictionary(c.fetchall())
+            c.execute(qPop, whereVars)
+            popValsArrGfs[site] = makeDictionary(c.fetchall())
     else:
         lgr.info("GFS TIMES DIFFER")
 
-
-        # whereVars = (mod, site, runtime)
-        # lgr.info("MODEL DETAILS - " + mod + ' ' + site + ' ' + str(runtime))
-        # c.execute(")
-        # res = c.fetchone()
-        # modelIndex = res[0]
-        # oldTimeStamp = datetime.strptime(res[1], dtgFormat)
+    output = createHeader(latestNam)
+    output += createBody(sites, latestNam,
+                         maxValsArrNam, minValsArrNam, popValsArrNam,
+                         maxValsArrGfs, minValsArrGfs, popValsArrGfs,
+                         )
+    output += createFooter()
+    print output.upper()
 
 else:
     lgr.info("GOING TO RETRIEVE THE FOLLOWING SITES: ")

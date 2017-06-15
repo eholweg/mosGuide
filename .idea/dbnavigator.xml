@@ -23,17 +23,11 @@
     <autoscroll-to-editor value="false" />
     <autoscroll-from-editor value="true" />
     <show-object-properties value="true" />
-    <loaded-nodes>
-      <connection connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e">
-        <schema name="main" object-types="column, constraint, index, table, dataset trigger, view" />
-      </connection>
-    </loaded-nodes>
+    <loaded-nodes />
   </component>
   <component name="DBNavigator.Project.DatabaseConsoleManager">
     <connection id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e">
-      <console name="MOS DB" type="STANDARD"><![CDATA[create table pop12Table (modelIndex integer, tau integer, pop12Val integer)
-alter table pop12Table rename to popDayTable
-select * from popDayTable]]></console>
+      <console name="MOS DB" type="STANDARD"><![CDATA[select * from "modelTable"]]></console>
       <console name="MOS DB 1" type="STANDARD" />
       <console name="MOS DB Live" type="STANDARD" />
     </connection>
@@ -62,6 +56,12 @@ select * from popDayTable]]></console>
       </filter>
     </filter-list>
     <filter-list connection-id="c255b1c6-9cf9-4e7d-955a-88d41ab3d5b3" dataset="main.modelTable" active-filter-id="EMPTY_FILTER" />
+    <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.minTable" active-filter-id="EMPTY_FILTER" />
+    <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.mosGuideAdmin" active-filter-id="EMPTY_FILTER">
+      <filter id="d0c9e4d8-7d81-4436-b404-195f95fdd9c8" name="Filter 1" temporary="false" custom-name="false" type="basic" join-type="AND">
+        <condition column="displayOrder" operator="=" value="" active="true" />
+      </filter>
+    </filter-list>
     <filter-list connection-id="7a1e25a0-02b8-482d-8a62-cbb7dd10032e" dataset="main.popPdTable" active-filter-id="d87c679f-314c-4c68-882b-80107ae5dd58">
       <filter id="d87c679f-314c-4c68-882b-80107ae5dd58" name="Filter 1" temporary="false" custom-name="false" type="basic" join-type="AND">
         <condition column="modelIndex" operator="=" value="" active="true" />

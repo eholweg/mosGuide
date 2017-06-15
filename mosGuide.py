@@ -6,7 +6,6 @@ import argparse
 import os
 from datetime import datetime, timedelta
 
-
 def createTimestamp(d, t):
     dParts = d.split('/')
     if len(dParts[0]) == 1:
@@ -43,7 +42,6 @@ mA = argparse.ArgumentParser()
 mA.add_argument('-mosFiles', nargs='+', type=str, help="Names of MOS files to be parsed", required=True)
 mosArgsFiles = mA.parse_args().mosFiles
 
-#for mos in os.listdir(mosDir):
 mosFile = mosDir+mosArgsFiles[0]
 lgr.info("MOS FILE: "+mosFile)
 
@@ -92,14 +90,8 @@ with open(mosFile) as f:
         data[arr.pop(0)] = arr
 
 
-        # oldTimeStamp += timedelta(hours=24)
-
 ### NOW HAVE ALL DATA STORED IN THE DATA ARRAY
 ### STORE OFF VALUES INTO DB
-
-
-
-
 ##################################################################
 ### BUILD NEW ROWS FROM BULLETIN DATA
 ### THIS IS FOCUSED ON MAX AND MIN TEMPS
@@ -161,7 +153,6 @@ for tau, xn in sorted(minmax.items()):
 ### MIN/MAX GUIDANCE IS NOW INSERTED FOR THIS SITE MODEL AND TIME
 ###########################################################################
 
-
 ###########################################################################
 ### INSERT 12 HOUR POPS INTO DB TABLES
 ### REMOVE EXISTING ROWS WITH THAT MODEL INDEX
@@ -169,10 +160,7 @@ whereVars = (modelIndex,)
 sql = "DELETE FROM 'popPdTable' WHERE modelIndex=?"
 c.execute(sql, whereVars)
 conn.commit()
-
-#print data['P12']
 pop12 = {}
-print runtime
 
 if runtime == 12 or runtime == 18:
     ### STARTS WITH TOMORROW POP
@@ -197,33 +185,7 @@ else:
 
 lgr.info("P12 VALS: "+ str(sorted(pop12.items())))
 for tau, pop in sorted(pop12.items()):
-    #print tau, xn
     whereVars = (modelIndex, tau, int(pop))
     sql = "INSERT INTO 'popPdTable' VALUES (?, ?, ?)"
     c.execute(sql, whereVars)
     conn.commit()
-
-
-
-
-
-
-
-        # print data['KCHA']
-        # print data['DT']
-        # print data
-
-        # dtg=createTimestamp( data['KCHA'][3], data['KCHA'][4])
-        # print dtg.strftime("%A")
-
-        # DAY OF WEEK... MONDAY
-
-        # dtg += timedelta(hours=24)
-        # print dtg.strftime(dtgFormat)
-        # print dtg.strftime("%A")
-        # dtg -= timedelta(hours=24)
-        # print dtg.strftime(dtgFormat)
-        # print dtg.strftime("%A")
-
-# Remove the file that has been processed
-#os.remove(mosFile)
