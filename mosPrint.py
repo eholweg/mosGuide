@@ -15,6 +15,11 @@ def createTimestamp(d, t):
     dt_obj = datetime(int(dParts[2]), int(dParts[0]), int(dParts[1]), int(t[:2]), 0, 0)
     return dt_obj
 
+def getDeltaModel(stamp, hours):
+    rt = datetime.strptime(stamp, dtgFormat)
+    newDtg=rt-timedelta(hours=hours)
+    return newDtg.strftime(dtgFormat)
+
 def makeDictionary(data):
     dict = {}
     for t in data:
@@ -180,13 +185,21 @@ mA.add_argument('-mosFiles', nargs='+', type=str, help="Names of MOS files to be
 mosArgsFiles = mA.parse_args().mosFiles
 
 vtimesnam = {}
+trendnam = {}
 vtimesgfs = {}
+trendgfs = {}
 maxValsArrNam = {}
+maxTrendValsArrNam = {}
 minValsArrNam = {}
+minTrendValsArrNam = {}
 popValsArrNam = {}
+popTrendValsArrNam = {}
 maxValsArrGfs = {}
+maxTrendValsArrGfs = {}
 minValsArrGfs = {}
+minTrendValsArrGfs = {}
 popValsArrGfs = {}
+popTrendValsArrGfs = {}
 
 if mosArgsFiles[0] == "ALL":
     lgr.info("GOING TO RETRIEVE ALL SITES")
@@ -206,15 +219,25 @@ if mosArgsFiles[0] == "ALL":
         latestNam = c.fetchone()[0]
         lgr.info("LATEST NAM: " + latestNam)
         vtimesnam[site] = latestNam
+        trendnam[site] = getDeltaModel(latestNam, 12)
 
         whereVars = ('GFS', site)
         c.execute(q, whereVars)
         latestGfs = c.fetchone()[0]
         lgr.info("LATEST GFS: " + latestGfs)
         vtimesgfs[site] = latestGfs
+        trendgfs[site] = getDeltaModel(latestGfs, 12)
 
     # NAM MOS
+    #print vtimesnam
+    #print trendnam
+    haveNamTrend=False
     if len(set(vtimesnam.values())) == 1:
+        if len(set(trendnam.values())) == 1:
+            lgr.info("NAM HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
+            haveNamTrend = True
+            trendTime= trendnam.values()[0]
+
         lgr.info("NAM TIMES EQUAL")
         q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
         qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
@@ -234,13 +257,36 @@ if mosArgsFiles[0] == "ALL":
             c.execute(qPop, whereVars)
             popValsArrNam[site] = makeDictionary(c.fetchall())
 
+            #NOW GET 12 HOUR OLD GUIDANCE
+            if haveNamTrend:
+                whereVars = ('NAM', trendTime, site)
+                c.execute(q, whereVars)
+                modelIndex = c.fetchone()[0]
+                whereVars = (modelIndex,)
+                c.execute(qMax, whereVars)
+                maxTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                c.execute(qMin, whereVars)
+                minTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                c.execute(qPop, whereVars)
+                popTrendValsArrNam[site] = makeDictionary(c.fetchall())
+
+
         # HAVE ALL NAM VALUES... NOW NEED TO OUTPUT
         lgr.info("SENDING DATA TO CREATE PRINT")
     else:
         lgr.info("NAM TIMES DIFFER")
+        lgr.info("Cannot create output for latest run time.")
+        lgr.info("Exiting")
+        exit(9)
 
     # GFS MOS
+    haveGfsTrend = False
     if len(set(vtimesgfs.values())) == 1:
+        if len(set(trendgfs.values())) == 1:
+            lgr.info("GFS HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
+            haveGfsTrend = True
+            trendTime= trendgfs.values()[0]
+
         lgr.info("GFS TIMES EQUAL")
         q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
         qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
@@ -249,7 +295,7 @@ if mosArgsFiles[0] == "ALL":
 
         for sa in sites:
             site = sa
-            whereVars = ('GFS', latestNam, site)
+            whereVars = ('GFS', latestGfs, site)
             c.execute(q, whereVars)
             modelIndex = c.fetchone()[0]
             whereVars = (modelIndex,)
@@ -259,8 +305,26 @@ if mosArgsFiles[0] == "ALL":
             minValsArrGfs[site] = makeDictionary(c.fetchall())
             c.execute(qPop, whereVars)
             popValsArrGfs[site] = makeDictionary(c.fetchall())
+
+            # NOW GET 12 HOUR OLD GUIDANCE
+            if haveGfsTrend:
+                whereVars = ('GFS', trendTime, site)
+                c.execute(q, whereVars)
+                modelIndex = c.fetchone()[0]
+                whereVars = (modelIndex,)
+                c.execute(qMax, whereVars)
+                maxTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                c.execute(qMin, whereVars)
+                minTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                c.execute(qPop, whereVars)
+                popTrendValsArrGfs[site] = makeDictionary(c.fetchall())
     else:
         lgr.info("GFS TIMES DIFFER")
+        exit(9)
+
+
+
+
 
     output = createHeader(latestNam)
     output += createBody(sites, latestNam,
