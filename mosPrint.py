@@ -1,10 +1,12 @@
 import sqlite3
 import logging
-from logging.config import fileConfig
 import argparse
 import os
 import pytz
+import json
 from datetime import datetime, timedelta
+from logging.config import fileConfig
+from subprocess import call
 
 def createTimestamp(d, t):
     dParts = d.split('/')
@@ -30,17 +32,24 @@ def createHeader(runtime):
     rt = datetime.strptime(runtime, dtgFormat)
     header="Model Run Time "
     header+=rt.strftime('%m/%d/%Y %H%M')+"\n"
-    header+='{0:<6s}{1}{2:>4s}{3:>4s}{4:>6s}{5:^10}{6}{7:>4s}{8:>4s}{9:>6s}\n'.format(
+    #        ***   TEMPS MET MAV BLEND TREND   MET   MAV  ******  POPS MET MAV BLEND TREND   MET   MAV
+    header+='{0:<6s}{1}{2:>4s}{3:>4s}{4:>6s}{5:>7s}{6:>4s}{7:>5s}{8:^5}{9}{10:>4s}{11:>4s}{12:>6s}{13:>7s}{14:>4s}{15:>5s}\n\n'.format(
                             '***',
                             'Temps',
                             'MET',
                             'MAV',
                             'Blend',
-                            '******',
+                            'Trend',
+                            'MET',
+                            'MAV',
+                            '***',
                             'POPS',
                             'MET',
                             'MAV',
-                            'Blend'
+                            'Blend',
+                            'Trend',
+                            'MET',
+                            'MAV',
                 )
     return header
 
@@ -68,12 +77,19 @@ def createDateLabels(runtime, tau):
             dayVal = easternTime.strftime("%A")  # Sunday
             nightVal = " Night"
 
-    return '{0:<25s}{1:}\n'.format( typeData, dayVal+nightVal )
+    return '{0:<42s}{1:}\n'.format( typeData, dayVal+nightVal )
 
-def createBody(sites, dtg, maxNam, minNam, popNam, maxGfs, minGfs, popGfs):
+def createBody(sites, dtg,
+               maxNam, minNam, popNam,
+               maxGfs, minGfs, popGfs,
+               trendMaxNam, trendMinNam, trendPopNam,
+               trendMaxGfs, trendMinGfs, trendPopGfs
+               ):
     dataVals=''
     dValsNam = {}
     dValsGfs = {}
+    dValsTrendNamTemp = {}
+    dValsTrendGfsTemp = {}
     rt = datetime.strptime(dtg, dtgFormat)
     rtHr = rt.hour
 
@@ -83,6 +99,12 @@ def createBody(sites, dtg, maxNam, minNam, popNam, maxGfs, minGfs, popGfs):
         dValsNam[s].update(minNam[s])
         dValsGfs[s] = maxGfs[s].copy()
         dValsGfs[s].update(minGfs[s])
+        dValsTrendNamTemp[s] = trendMaxNam[s].copy()
+        dValsTrendNamTemp[s].update(trendMinNam[s])
+        dValsTrendGfsTemp[s] = trendMaxGfs[s].copy()
+        dValsTrendGfsTemp[s].update(trendMinGfs[s])
+
+
 
     # IF 0 OR 6 RUN... MAX WILL BE FIRST
     # ... 6Z starts at 18 hours
@@ -119,15 +141,32 @@ def createBody(sites, dtg, maxNam, minNam, popNam, maxGfs, minGfs, popGfs):
             btemp=int( round( (dValsNam[s][t] + dValsGfs[s][t]) / 2, 0 ) )
             bpop=int( round( (popNam[s][t] + popGfs[s][t]) / 2, 0 ) )
 
-            dataVals += '{0:<10s}{1:>5d}{2:>4d}{3:>6d}{4:<14s}{5:>4d}{6:>4d}{7:>6d}\n'.format(
+            #TEMP TRENDS ARE CURRENT VALUE - OLD VALUE
+            timepd=t+12
+            if timepd in trendPopNam[s]:
+                tempTrendNam = str( dValsNam[s][t] - dValsTrendNamTemp[s][t+12] )
+                tempTrendGfs = str( dValsGfs[s][t] - dValsTrendGfsTemp[s][t+12] )
+                popTrendNam = str( popNam[s][t] - trendPopNam[s][t+12] )
+                popTrendGfs = str( popGfs[s][t] - trendPopGfs[s][t+12] )
+            else:
+                tempTrendNam = '*'
+                tempTrendGfs = '*'
+                popTrendNam = '*'
+                popTrendGfs = '*'
+
+            dataVals += '{0:<10s}{1:>5d}{2:>4d}{3:>6d}{4:>11s}{5:>5s}{6:<9s}{7:>4d}{8:>4d}{9:>6d}{10:>11s}{11:>5s}\n'.format(
                 s[1:],
                 dValsNam[s][t],
                 dValsGfs[s][t],
                 btemp,
+                tempTrendNam,
+                tempTrendGfs,
                 ' ',
                 popNam[s][t],
                 popGfs[s][t],
-                bpop
+                bpop,
+                popTrendNam,
+                popTrendGfs
             )
         dataVals += "\n"
     return dataVals
@@ -228,113 +267,133 @@ if mosArgsFiles[0] == "ALL":
         vtimesgfs[site] = latestGfs
         trendgfs[site] = getDeltaModel(latestGfs, 12)
 
-    # NAM MOS
-    #print vtimesnam
-    #print trendnam
-    haveNamTrend=False
-    if len(set(vtimesnam.values())) == 1:
-        if len(set(trendnam.values())) == 1:
-            lgr.info("NAM HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
-            haveNamTrend = True
-            trendTime= trendnam.values()[0]
 
-        lgr.info("NAM TIMES EQUAL")
-        q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
-        qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
-        qMin = "SELECT tau, minVal from minTable WHERE modelIndex=? ORDER BY tau"
-        qPop = "SELECT tau, popVal from popPdTable WHERE modelIndex=? ORDER BY tau"
+    # Check to see if we have all 0 or all 12 UTC MOS as latest
+    if len(set(vtimesnam.values())) == 1 and \
+       len(set(vtimesgfs.values())) == 1 and \
+       latestNam == latestGfs:
+        # NAM MOS
+        haveNamTrend=False
+        if len(set(vtimesnam.values())) == 1:
+            if len(set(trendnam.values())) == 1:
+                lgr.info("NAM HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
+                haveNamTrend = True
+                trendTime= trendnam.values()[0]
 
-        for sa in sites:
-            site = sa
-            whereVars = ('NAM', latestNam, site)
-            c.execute(q, whereVars)
-            modelIndex = c.fetchone()[0]
-            whereVars = (modelIndex,)
-            c.execute(qMax, whereVars)
-            maxValsArrNam[site] = makeDictionary(c.fetchall())
-            c.execute(qMin, whereVars)
-            minValsArrNam[site] = makeDictionary(c.fetchall())
-            c.execute(qPop, whereVars)
-            popValsArrNam[site] = makeDictionary(c.fetchall())
+            lgr.info("NAM TIMES EQUAL")
+            q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
+            qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
+            qMin = "SELECT tau, minVal from minTable WHERE modelIndex=? ORDER BY tau"
+            qPop = "SELECT tau, popVal from popPdTable WHERE modelIndex=? ORDER BY tau"
 
-            #NOW GET 12 HOUR OLD GUIDANCE
-            if haveNamTrend:
-                whereVars = ('NAM', trendTime, site)
+            for sa in sites:
+                site = sa
+                whereVars = ('NAM', latestNam, site)
                 c.execute(q, whereVars)
                 modelIndex = c.fetchone()[0]
                 whereVars = (modelIndex,)
                 c.execute(qMax, whereVars)
-                maxTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                maxValsArrNam[site] = makeDictionary(c.fetchall())
                 c.execute(qMin, whereVars)
-                minTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                minValsArrNam[site] = makeDictionary(c.fetchall())
                 c.execute(qPop, whereVars)
-                popTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                popValsArrNam[site] = makeDictionary(c.fetchall())
+
+                #NOW GET 12 HOUR OLD GUIDANCE
+                if haveNamTrend:
+                    whereVars = ('NAM', trendTime, site)
+                    c.execute(q, whereVars)
+                    modelIndex = c.fetchone()[0]
+                    whereVars = (modelIndex,)
+                    c.execute(qMax, whereVars)
+                    maxTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                    c.execute(qMin, whereVars)
+                    minTrendValsArrNam[site] = makeDictionary(c.fetchall())
+                    c.execute(qPop, whereVars)
+                    popTrendValsArrNam[site] = makeDictionary(c.fetchall())
 
 
-        # HAVE ALL NAM VALUES... NOW NEED TO OUTPUT
-        lgr.info("SENDING DATA TO CREATE PRINT")
-    else:
-        lgr.info("NAM TIMES DIFFER")
-        lgr.info("Cannot create output for latest run time.")
-        lgr.info("Exiting")
-        exit(9)
+            # HAVE ALL NAM VALUES... NOW NEED TO OUTPUT
+            lgr.info("SENDING DATA TO CREATE PRINT")
+        else:
+            lgr.info("NAM TIMES DIFFER")
+            lgr.info("Cannot create output for latest run time.")
+            lgr.info("Exiting")
+            exit(9)
 
-    # GFS MOS
-    haveGfsTrend = False
-    if len(set(vtimesgfs.values())) == 1:
-        if len(set(trendgfs.values())) == 1:
-            lgr.info("GFS HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
-            haveGfsTrend = True
-            trendTime= trendgfs.values()[0]
+        # GFS MOS
+        haveGfsTrend = False
+        if len(set(vtimesgfs.values())) == 1:
+            if len(set(trendgfs.values())) == 1:
+                lgr.info("GFS HAS TREND TIMES THAT ARE EQUAL - Will include trend data")
+                haveGfsTrend = True
+                trendTime= trendgfs.values()[0]
 
-        lgr.info("GFS TIMES EQUAL")
-        q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
-        qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
-        qMin = "SELECT tau, minVal from minTable WHERE modelIndex=? ORDER BY tau"
-        qPop = "SELECT tau, popVal from popPdTable WHERE modelIndex=? ORDER BY tau"
+            lgr.info("GFS TIMES EQUAL")
+            q = "SELECT modelIndex from modelTable WHERE model=? AND timestamp = ? and site=?"
+            qMax = "SELECT tau, maxVal from maxTable WHERE modelIndex=? ORDER BY tau"
+            qMin = "SELECT tau, minVal from minTable WHERE modelIndex=? ORDER BY tau"
+            qPop = "SELECT tau, popVal from popPdTable WHERE modelIndex=? ORDER BY tau"
 
-        for sa in sites:
-            site = sa
-            whereVars = ('GFS', latestGfs, site)
-            c.execute(q, whereVars)
-            modelIndex = c.fetchone()[0]
-            whereVars = (modelIndex,)
-            c.execute(qMax, whereVars)
-            maxValsArrGfs[site] = makeDictionary(c.fetchall())
-            c.execute(qMin, whereVars)
-            minValsArrGfs[site] = makeDictionary(c.fetchall())
-            c.execute(qPop, whereVars)
-            popValsArrGfs[site] = makeDictionary(c.fetchall())
-
-            # NOW GET 12 HOUR OLD GUIDANCE
-            if haveGfsTrend:
-                whereVars = ('GFS', trendTime, site)
+            for sa in sites:
+                site = sa
+                whereVars = ('GFS', latestGfs, site)
                 c.execute(q, whereVars)
                 modelIndex = c.fetchone()[0]
                 whereVars = (modelIndex,)
                 c.execute(qMax, whereVars)
-                maxTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                maxValsArrGfs[site] = makeDictionary(c.fetchall())
                 c.execute(qMin, whereVars)
-                minTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                minValsArrGfs[site] = makeDictionary(c.fetchall())
                 c.execute(qPop, whereVars)
-                popTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                popValsArrGfs[site] = makeDictionary(c.fetchall())
+
+                # NOW GET 12 HOUR OLD GUIDANCE
+                if haveGfsTrend:
+                    whereVars = ('GFS', trendTime, site)
+                    c.execute(q, whereVars)
+                    modelIndex = c.fetchone()[0]
+                    whereVars = (modelIndex,)
+                    c.execute(qMax, whereVars)
+                    maxTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                    c.execute(qMin, whereVars)
+                    minTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+                    c.execute(qPop, whereVars)
+                    popTrendValsArrGfs[site] = makeDictionary(c.fetchall())
+        else:
+            lgr.info("GFS TIMES DIFFER")
+            exit(9)
     else:
-        lgr.info("GFS TIMES DIFFER")
+        lgr.info("Do Not Have Latest Data at 0 or 12 Z....Cannot Print Out")
+        lgr.info(json.dumps(vtimesnam, sort_keys=True, indent=2))
+        lgr.info(json.dumps(vtimesgfs, sort_keys=True, indent=2))
         exit(9)
 
 
 
 
-
+    # Ready to prepare output guidance
     output = createHeader(latestNam)
     output += createBody(sites, latestNam,
                          maxValsArrNam, minValsArrNam, popValsArrNam,
                          maxValsArrGfs, minValsArrGfs, popValsArrGfs,
+                         maxTrendValsArrNam, minTrendValsArrNam, popTrendValsArrNam,
+                         maxTrendValsArrGfs, minTrendValsArrGfs, popTrendValsArrGfs
                          )
     output += createFooter()
-    print output.upper()
+
+
+    dgsOutFile = mosDir+"DGSMRX"
+    dgsmrx = open(dgsOutFile, 'w')
+    dgsmrx.write(output.upper())
+    dgsmrx.close()
+    cmd="textdb -w MEMDGSMRX < "+dgsOutFile
+    call(cmd, shell=True)
+
+    lgr.info(output.upper())
 
 else:
+    #TODO Need To Write Code For Single Station
     lgr.info("GOING TO RETRIEVE THE FOLLOWING SITES: ")
     for site in mosArgsFiles:
         lgr.info("SITE: " + site)
